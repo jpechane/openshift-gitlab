@@ -1,0 +1,402 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+        "annotations": {
+            "description": "Template for deployment of scalable GitLab instance (without persistence)"
+        },
+        "name": "gitlab-non-persistent"
+    },
+    "labels": {
+        "template": "gitlab-non-persistent"
+    },
+    "parameters": [
+        {
+            "description": "The name for the application.",
+            "name": "APPLICATION_NAME",
+            "value": "gitlab",
+            "required": true
+        },
+        {
+            "description": "Hostname for GitLab application service",
+            "name": "GITLAB_HOSTNAME",
+            "value": "gitlab.cloudapps.example.com",
+            "required": true
+        },
+        {
+            "description": "Database name",
+            "name": "DB_DATABASE",
+            "value": "gitlab",
+            "required": true
+        },
+        {
+            "description": "Database user name",
+            "name": "DB_USERNAME",
+            "from": "user[a-zA-Z0-9]{3}",
+            "generate": "expression",
+            "required": true
+        },
+        {
+            "description": "Database user password",
+            "name": "DB_PASSWORD",
+            "from": "[a-zA-Z0-9]{8}",
+            "generate": "expression",
+            "required": true
+        },
+        {
+            "description": "GitLab's initial root password",
+            "name": "GITLAB_ROOT_PASSWORD",
+            "value": "CHANGEME",
+            "required": true
+        },
+        {
+            "description": "GitLab's secret space master key",
+            "name": "GITLAB_SECRETS_DB_KEY_BASE",
+            "from": "[a-zA-Z0-9]{64}",
+            "generate": "expression",
+            "required": true
+        },
+        {
+            "description": "Namespace in which the ImageStreams for Gitlab images are installed. These ImageStreams are normally installed in the openshift namespace. You should only need to modify this if you've installed the ImageStreams in a different namespace/project.",
+            "name": "IMAGE_STREAM_NAMESPACE",
+            "value": "openshift",
+            "required": true
+        }
+    ],
+    "objects": [
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "ports": [
+                    {
+                        "port": 80,
+                        "targetPort": 80
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-app-server"
+                }
+            },
+            "metadata": {
+                "name": "${APPLICATION_NAME}-app-server",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "The web server's http port."
+                }
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "ports": [
+                    {
+                        "port": 5432,
+                        "targetPort": 5432
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-postgresql"
+                }
+            },
+            "metadata": {
+                "name": "postgresql",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "The database server's port."
+                }
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "ports": [
+                    {
+                        "port": 6379,
+                        "targetPort": 6379
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-redis"
+                }
+            },
+            "metadata": {
+                "name": "redisio",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "The Redis server's port."
+                }
+            }
+        },
+        {
+            "kind": "Route",
+            "apiVersion": "v1",
+            "id": "${APPLICATION_NAME}-http",
+            "metadata": {
+                "name": "${APPLICATION_NAME}",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "Route for GitLab web server."
+                }
+            },
+            "spec": {
+                "host": "${GITLAB_HOSTNAME}",
+                "to": {
+                    "name": "${APPLICATION_NAME}-app-server"
+                }
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-postgresql",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}-postgresql"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "${IMAGE_STREAM_NAMESPACE}",
+                                "name": "gitlab-postgresql-server:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-postgresql"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "${APPLICATION_NAME}-postgresql",
+                        "labels": {
+                            "deploymentConfig": "${APPLICATION_NAME}-postgresql",
+                            "application": "${APPLICATION_NAME}"
+                        }
+                    },
+                    "spec": {
+			"serviceAccount": "gitlab-account",
+			"securityContext": {
+				"runAsUser": 0
+			},
+                        "terminationGracePeriodSeconds": 60,
+                        "containers": [
+                            {
+                                "name": "${APPLICATION_NAME}-postgresql",
+                                "image": "gitlab-postgresql-server",
+                                "ports": [
+                                    {
+                                        "containerPort": 5432,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "DB_USER",
+                                        "value": "${DB_USERNAME}"
+                                    },
+                                    {
+                                        "name": "DB_PASS",
+                                        "value": "${DB_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "DB_NAME",
+                                        "value": "${DB_DATABASE}"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-redis",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}-redis"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "${IMAGE_STREAM_NAMESPACE}",
+                                "name": "gitlab-redis-server:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-redis"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "${APPLICATION_NAME}-redis",
+                        "labels": {
+                            "deploymentConfig": "${APPLICATION_NAME}-redis",
+                            "application": "${APPLICATION_NAME}"
+                        }
+                    },
+                    "spec": {
+			"serviceAccount": "gitlab-account",
+			"securityContext": {
+				"runAsUser": 0
+			},
+                        "terminationGracePeriodSeconds": 60,
+                        "containers": [
+                            {
+                                "name": "${APPLICATION_NAME}-redis",
+                                "image": "gitlab-redis-server",
+                                "ports": [
+                                    {
+                                        "containerPort": 5432,
+                                        "protocol": "TCP"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-app-server",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}-app-server"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "${IMAGE_STREAM_NAMESPACE}",
+                                "name": "gitlab-application-server:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-app-server"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "${APPLICATION_NAME}-app-server",
+                        "labels": {
+                            "deploymentConfig": "${APPLICATION_NAME}-app-server",
+                            "application": "${APPLICATION_NAME}"
+                        }
+                    },
+                    "spec": {
+			"serviceAccount": "gitlab-account",
+			"securityContext": {
+				"runAsUser": 0
+			},
+                        "terminationGracePeriodSeconds": 60,
+                        "containers": [
+                            {
+                                "name": "${APPLICATION_NAME}-app-server",
+                                "image": "gitlab-application-server",
+                                "ports": [
+                                    {
+                                        "containerPort": 80,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "DEBUG",
+                                        "value": "true"
+                                    },
+                                    {
+                                        "name": "GITLAB_HOST",
+                                        "value": "${GITLAB_HOSTNAME}"
+                                    },
+                                    {
+                                        "name": "DB_NAME",
+                                        "value": "${DB_DATABASE}"
+                                    },
+                                    {
+                                        "name": "DB_USER",
+                                        "value": "${DB_USERNAME}"
+                                    },
+                                    {
+                                        "name": "DB_PASS",
+                                        "value": "${DB_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "GITLAB_ROOT_PASSWORD",
+                                        "value": "${GITLAB_ROOT_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "GITLAB_SECRETS_DB_KEY_BASE",
+                                        "value": "${GITLAB_SECRETS_DB_KEY_BASE}"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ]
+}

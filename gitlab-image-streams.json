@@ -1,0 +1,57 @@
+{
+    "kind": "List",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "gitlab-image-streams",
+        "annotations": {
+            "description": "ImageStream definitions to create scalable GitLab instance"
+        }
+    },
+    "items": [
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "gitlab-application-server"
+            },
+            "spec": {
+                "dockerImageRepository": "sameersbn/gitlab",
+                "tags": [
+                    {
+                        "name": "latest"
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "gitlab-redis-server"
+            },
+            "spec": {
+                "dockerImageRepository": "sameersbn/redis",
+                "tags": [
+                    {
+                        "name": "latest"
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "gitlab-postgresql-server"
+            },
+            "spec": {
+                "dockerImageRepository": "sameersbn/postgresql",
+                "tags": [
+                    {
+                        "name": "latest"
+                    }
+                ]
+            }
+        }
+    ]
+}
