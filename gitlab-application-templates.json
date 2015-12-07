@@ -57,6 +57,36 @@
             "required": true
         },
         {
+            "description": "Sending emails enabled",
+            "name": "SMTP_ENABLED",
+            "value": "false",
+            "required": true
+        },
+        {
+            "description": "SMTP server host",
+            "name": "SMTP_SERVER_HOST",
+            "value": "",
+            "required": false
+        },
+        {
+            "description": "SMTP server port",
+            "name": "SMTP_SERVER_PORT",
+            "value": "25",
+            "required": false
+        },
+        {
+            "description": "SMTP server username",
+            "name": "SMTP_USERNAME",
+            "value": "",
+            "required": false
+        },
+        {
+            "description": "SMTP server password",
+            "name": "SMTP_PASSWORD",
+            "value": "",
+            "required": false
+        },
+        {
             "description": "Namespace in which the ImageStreams for Gitlab images are installed. These ImageStreams are normally installed in the openshift namespace. You should only need to modify this if you've installed the ImageStreams in a different namespace/project.",
             "name": "IMAGE_STREAM_NAMESPACE",
             "value": "openshift",
@@ -390,6 +420,26 @@
                                     {
                                         "name": "GITLAB_SECRETS_DB_KEY_BASE",
                                         "value": "${GITLAB_SECRETS_DB_KEY_BASE}"
+                                    },
+                                    {
+                                        "name": "SMTP_ENABLED",
+                                        "value": "${SMTP_ENABLED}"
+                                    },
+                                    {
+                                        "name": "SMTP_HOST",
+                                        "value": "${SMTP_SERVER_HOST}"
+                                    },
+                                    {
+                                        "name": "SMTP_PORT",
+                                        "value": "${SMTP_SERVER_PORT}"
+                                    },
+                                    {
+                                        "name": "SMTP_USER",
+                                        "value": "${SMTP_USERNAME}"
+                                    },
+                                    {
+                                        "name": "SMTP_PASS",
+                                        "value": "${SMTP_PASSWORD}"
                                     }
                                 ]
                             }
